@@ -1,0 +1,2 @@
+    flutter doctor -v
+    

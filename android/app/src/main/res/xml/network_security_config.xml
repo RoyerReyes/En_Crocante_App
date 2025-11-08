@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- CORRECCIÓN: Se añade tu IP actual a la lista blanca -->
+        <domain includeSubdomains="true">192.168.18.39</domain>
+        
+        <!-- Se mantienen las IPs anteriores por si cambian en el futuro -->
+        <domain includeSubdomains="true">192.168.18.76</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>
