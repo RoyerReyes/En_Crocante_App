@@ -2,60 +2,63 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb; 
 import 'dart:io' show Platform; 
 import 'secure_storage_service.dart';
+import 'logging_interceptor.dart';
+import '../constants/api_constants.dart'; // Added
 
-final SecureStorageService _storageService = SecureStorageService();
-final Dio dio = _createDioClient();
+Dio? _dioInstance;
+
+Dio get dio {
+  _dioInstance ??= _createDioClient();
+  return _dioInstance!;
+}
 
 Dio _createDioClient() {
-  String baseUrl;
-  if (kIsWeb) {
-    baseUrl = "http://127.0.0.1:3000";
-    print("🌐 Dio Base URL (Web): $baseUrl");
-  } else if (Platform.isAndroid) {
-    // Para dispositivos Android (físicos y emuladores)
-    // Aquí usamos la IP real de tu PC: 192.168.18.39
-    // Asegúrate de que tu backend esté escuchando en esta IP (0.0.0.0 o la misma IP)
-    baseUrl = "http://192.168.18.39:3000"; // <--- ¡Tu IP local real para el dispositivo físico!
-    print("📱 Dio Base URL (Android - Dispositivo Físico): $baseUrl");
-
-    // NOTA: Si en algún momento necesitas volver a probar en un EMULADOR,
-    // tendrías que cambiar esta línea a: baseUrl = "http://10.0.2.2:3000";
-    // o añadir una lógica para detectarlo, pero para tu caso actual de móvil físico, esta es la correcta.
-
-  } else { 
-    baseUrl = "http://localhost:3000"; 
-    print("💻 Dio Base URL (Otros): $baseUrl");
-  }
+  final baseUrl = ApiConstants.baseUrl;
+  print("🌐 Dio Base URL: $baseUrl");
 
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl, 
-    connectTimeout: const Duration(seconds: 10), 
-    receiveTimeout: const Duration(seconds: 5),
+    connectTimeout: const Duration(seconds: 15), 
+    receiveTimeout: const Duration(seconds: 10),
   ));
 
+  dio.interceptors.add(LoggingInterceptor());
+  
+  // Retry Logic Interceptor (Inline for now, could be extracted)
   dio.interceptors.add(InterceptorsWrapper(
-    onRequest: (options, handler) async {
-      String? token = await _storageService.getToken();
+    onError: (DioException e, handler) async {
+      // Retry Logic
+      int retryCount = e.requestOptions.extra['retryCount'] ?? 0;
+      const int maxRetries = 3;
 
-      if (token != null) {
-        options.headers["Authorization"] = "Bearer $token";
-        print("✅ Token añadido a la cabecera para ${options.path}");
-      } else {
-        print("⚠️ No se encontró token para la petición a ${options.path}");
+      if (retryCount < maxRetries && _isRetryable(e)) {
+        retryCount++;
+        e.requestOptions.extra['retryCount'] = retryCount;
+        
+        final delay = Duration(seconds: 1 * retryCount);
+        print("⚠️ Reintentando petición (${retryCount}/$maxRetries) en ${delay.inSeconds}s...");
+        
+        await Future.delayed(delay);
+
+        try {
+          final response = await dio.fetch(e.requestOptions);
+          return handler.resolve(response);
+        } catch (retryError) {
+          return handler.next(e); 
+        }
       }
-      
-      return handler.next(options);
-    },
-    onError: (DioException e, handler) {
-      print("❌ Error en petición: ${e.requestOptions.path}");
-      print(" Mensaje: ${e.message}");
-      if (e.response != null) {
-        print(" Status: ${e.response?.statusCode}");
-        print(" Data: ${e.response?.data}");
-      }
+
       return handler.next(e);
     },
   ));
 
   return dio;
+}
+
+bool _isRetryable(DioException e) {
+  return e.type == DioExceptionType.connectionTimeout ||
+      e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.sendTimeout ||
+      e.type == DioExceptionType.connectionError ||
+      (e.type == DioExceptionType.unknown && e.message?.contains('SocketException') == true);
 }

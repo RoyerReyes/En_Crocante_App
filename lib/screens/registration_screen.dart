@@ -15,6 +15,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _name = '';
   String _username = ''; // Cambiado de _email a _username
   String _password = '';
+  String _selectedRole = 'mesero';
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -31,6 +32,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'nombre': _name,
           'usuario': _username, // Usamos _username aquí
           'password': _password,
+          'rol': _selectedRole,
         });
         
         if (mounted) {
@@ -105,23 +107,42 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   onSaved: (value) => _username = value!, // Ahora guarda en _username
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: Icon(Icons.lock),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Rol',
+                      prefixIcon: Icon(Icons.work),
+                    ),
+                    value: _selectedRole,
+                    items: const [
+                       DropdownMenuItem(value: 'mesero', child: Text('Mesero')),
+                       DropdownMenuItem(value: 'cocinero', child: Text('Cocinero')),
+                       DropdownMenuItem(value: 'admin', child: Text('Administrador (Demo)')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                         _selectedRole = value!;
+                      });
+                    },
                   ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Por favor, ingresa tu contraseña';
-                    }
-                    if (value.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => _password = value!,
-                ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: Icon(Icons.lock),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value!.isEmpty) {
+                        return 'Por favor, ingresa tu contraseña';
+                      }
+                      if (value.length < 6) {
+                        return 'La contraseña debe tener al menos 6 caracteres';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => _password = value!,
+                  ),
                 const SizedBox(height: 32),
                 
                 if (_isLoading)

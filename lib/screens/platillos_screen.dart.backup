@@ -1,0 +1,298 @@
+import 'package:encrocante_app/providers/cart_provider.dart';
+import 'package:encrocante_app/providers/pedido_provider.dart';
+import 'package:encrocante_app/screens/cart_screen.dart';
+import 'package:encrocante_app/services/socket_service.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/platillo_model.dart';
+import '../services/auth_service.dart';
+import '../services/platillo_service.dart';
+import '../widgets/order_details_widget.dart'; // Add this
+import '../providers/order_details_provider.dart'; // ADDED: Missing import
+import 'login_screen.dart';
+import 'pedidos_list_screen.dart'; // ADDED: Import for PedidosListScreen
+
+class PlatillosPage extends StatefulWidget {
+  final String userRole;
+  final String userName;
+
+  const PlatillosPage({super.key, required this.userRole, required this.userName});
+
+  @override
+  State<PlatillosPage> createState() => _PlatillosPageState();
+}
+
+class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProviderStateMixin {
+  final PlatilloService _platilloService = PlatilloService();
+  final AuthService _authService = AuthService();
+  late SocketService _socketService;
+  late Future<List<Platillo>> _platillosFuture;
+  late TabController _tabController;
+
+  String? _mozoResponsable; // New field
+
+  final TextEditingController _searchController = TextEditingController();
+  String _filtroSeleccionado = 'Todos';
+  List<Platillo> _platillosOriginales = [];
+  List<Platillo> _platillosFiltrados = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final pedidoProvider = Provider.of<PedidoProvider>(context, listen: false);
+    _socketService = SocketService(
+      onEstadoActualizado: pedidoProvider.actualizarEstadoDesdeSocket,
+    );
+    _socketService.connectToServer();
+    
+    _tabController = TabController(length: 2, vsync: this);
+    _loadData();
+    _loadMozoResponsable(); // Call this here
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  Future<void> _loadData() {
+    _platillosFuture = _platilloService.getPlatillos();
+    return _platillosFuture.then((platillos) {
+      if (mounted) {
+        setState(() {
+          _platillosOriginales = platillos;
+          _filterPlatillos();
+        });
+      }
+    });
+  }
+
+  void _onSearchChanged() {
+    _filterPlatillos();
+  }
+  
+  void _onFilterSelected(String filtro) {
+    setState(() {
+      _filtroSeleccionado = filtro;
+    });
+    _filterPlatillos();
+  }
+
+  void _filterPlatillos() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _platillosFiltrados = _platillosOriginales.where((platillo) {
+        final matchNombre = platillo.nombre.toLowerCase().contains(query);
+        final matchCategoria = _filtroSeleccionado == 'Todos' || platillo.categoria.nombre == _filtroSeleccionado;
+        return matchNombre && matchCategoria;
+      }).toList();
+    });
+  }
+
+  Future<void> _loadMozoResponsable() async { // New method
+    final userName = await _authService.getLoggedInUserName();
+    setState(() {
+      _mozoResponsable = userName;
+    });
+  }
+
+  @override
+  void dispose() {
+    _socketService.disconnect();
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshPlatillos() async {
+    _searchController.clear();
+    setState(() { _filtroSeleccionado = 'Todos'; });
+    await _loadData();
+  }
+
+  void _logout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (Route<dynamic> route) => false,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        elevation: 4.0,
+        leading: IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Cerrar Sesión',
+          onPressed: _logout,
+        ),
+        title: Consumer<OrderDetailsProvider>( // Wrap with Consumer to listen to changes
+          builder: (context, orderDetails, child) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Mesa: ${orderDetails.numeroMesa}"), // Display numeroMesa from provider
+                Text(widget.userName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal)), // Mozo Responsable
+              ],
+            );
+          },
+        ),
+        actions: [
+          IconButton(icon: const Icon(Icons.receipt_long), tooltip: 'Ver Pedidos', onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const PedidosListScreen()),
+            );
+          }),
+          // --- CORRECCIÓN AQUÍ ---
+          // El Consumer debe ser de tipo CartProvider para que funcione el carrito.
+          Consumer<CartProvider>(
+            builder: (context, cart, child) => Badge(
+              label: Text(cart.itemCount.toString()),
+              isLabelVisible: cart.itemCount > 0,
+              child: IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                tooltip: 'Ver Carrito',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const CartScreen()),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.restaurant_menu), text: 'Menú'),
+            Tab(icon: Icon(Icons.person), text: 'Cliente'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildMenuTab(),
+          _buildClienteTab(),
+        ],
+      ),
+      floatingActionButton: widget.userRole == 'admin'
+          ? FloatingActionButton(onPressed: () {}, child: const Icon(Icons.add))
+          : null,
+    );
+  }
+
+  Widget _buildMenuTab() {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    return RefreshIndicator(
+      onRefresh: _refreshPlatillos,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar platillos...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25.0)),
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
+            ),
+          ),
+          _buildFilterChips(),
+          const Divider(height: 1),
+          Expanded(
+            child: FutureBuilder<List<Platillo>>(
+              future: _platillosFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error:\n${snapshot.error}', textAlign: TextAlign.center));
+                }
+                if (_platillosFiltrados.isEmpty) {
+                  return const Center(child: Text("No se encontraron platillos."));
+                }
+                return ListView.builder(
+                  itemCount: _platillosFiltrados.length,
+                  itemBuilder: (context, index) {
+                    final platillo = _platillosFiltrados[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        radius: 30,
+                        backgroundImage: (platillo.imagenUrl != null && platillo.imagenUrl!.isNotEmpty)
+                            ? NetworkImage(platillo.imagenUrl!)
+                            : null,
+                        child: (platillo.imagenUrl == null || platillo.imagenUrl!.isEmpty)
+                            ? const Icon(Icons.restaurant, color: Colors.white)
+                            : null,
+                      ),
+                      title: Text(platillo.nombre),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(platillo.descripcion ?? ''),
+                          const SizedBox(height: 4),
+                          Text(
+                            'S/${platillo.precio.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add_shopping_cart, color: Colors.deepOrange, size: 30),
+                        onPressed: () {
+                          cartProvider.addItem(platillo);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${platillo.nombre} añadido al carrito.'),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    if (_platillosOriginales.isEmpty) { return const SizedBox.shrink(); }
+    final categorias = _platillosOriginales.map((p) => p.categoria.nombre).toSet().toList();
+    final filtros = ['Todos', ...categorias]; 
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: Row(
+        children: filtros.map((filtro) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: FilterChip(
+              label: Text(filtro),
+              selected: _filtroSeleccionado == filtro,
+              onSelected: (selected) { if (selected) { _onFilterSelected(filtro); } },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildClienteTab() {
+    return OrderDetailsWidget(
+      mozoResponsable: _mozoResponsable ?? 'Mozo Desconocido',
+    );
+  }
+}

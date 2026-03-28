@@ -1,4 +1,5 @@
 import 'package:encrocante_app/screens/admin_dashboard_screen.dart';
+import 'package:encrocante_app/screens/kitchen_screen.dart';
 import 'package:flutter/material.dart';
 import '../models/usuario_model.dart';
 import '../services/auth_service.dart';
@@ -18,6 +19,7 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
   String _username = ''; // CORRECCIÓN: Se revierte a _username
   String _password = '';
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   Future<void> _login() async {
@@ -37,7 +39,12 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
             );
-          } else {
+          } else if (user.rol == 'cocina') {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const KitchenScreen()),
+            );
+          }
+          else {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (context) => PlatillosPage(userRole: user.rol, userName: user.nombre)),
             );
@@ -82,11 +89,21 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
               ),
               const SizedBox(height: 16.0),
               TextFormField(
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Contraseña',
-                  prefixIcon: Icon(Icons.lock), 
+                  prefixIcon: const Icon(Icons.lock), 
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obscurePassword,
                 validator: (value) => value!.isEmpty ? 'Por favor, introduce tu contraseña' : null,
                 onSaved: (value) => _password = value!,
               ),

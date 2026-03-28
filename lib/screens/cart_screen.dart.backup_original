@@ -1,0 +1,233 @@
+import 'package:encrocante_app/screens/pedidos_list_screen.dart'; // Importar PedidosListScreen
+import 'package:encrocante_app/services/auth_service.dart';
+import 'package:encrocante_app/services/pedido_service.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
+import '../providers/order_details_provider.dart'; // ADDED: Missing import
+
+class CartScreen extends StatefulWidget {
+  const CartScreen({super.key});
+
+  @override
+  State<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends State<CartScreen> {
+  final PedidoService _pedidoService = PedidoService();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
+  final TextEditingController _notaGeneralPedidoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _notaGeneralPedidoController.dispose();
+    super.dispose();
+  }
+
+  void _submitOrder() async {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final orderDetailsProvider = Provider.of<OrderDetailsProvider>(context, listen: false);
+
+    if (cartProvider.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El carrito está vacío. Agrega productos antes de realizar un pedido.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (orderDetailsProvider.nombreCliente.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, completa el nombre del cliente en la pestaña Cliente.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() { _isLoading = true; });
+
+    try {
+      final success = await _pedidoService.crearPedido(
+        cartProvider.itemsList,
+        orderDetailsProvider.nombreCliente.trim(),
+        orderDetailsProvider.numeroMesa,
+        notaGeneralPedido: _notaGeneralPedidoController.text.trim().isEmpty ? null : _notaGeneralPedidoController.text.trim(),
+      );
+
+      if (success && mounted) {
+        cartProvider.clearCart();
+        orderDetailsProvider.resetClientDetails();
+        _notaGeneralPedidoController.clear();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Pedido realizado con éxito!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Redirigir al dashboard de pedidos para seguimiento inmediato
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const PedidosListScreen()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al realizar el pedido: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { _isLoading = false; });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mi Carrito de Compras'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Consumer<CartProvider>(
+              builder: (context, cart, child) {
+                final cartItems = cart.itemsList;
+                if (cartItems.isEmpty) {
+                  return const Center(
+                    child: Text('Tu carrito está vacío.', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: cartItems.length,
+                  itemBuilder: (context, index) {
+                    final item = cartItems[index];
+                    final TextEditingController notesController = TextEditingController(text: item.notas);
+
+                    return Column(
+                      children: [
+                        ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: (item.platillo.imagenUrl != null && item.platillo.imagenUrl!.isNotEmpty)
+                                ? NetworkImage(item.platillo.imagenUrl!)
+                                : null,
+                            child: (item.platillo.imagenUrl == null || item.platillo.imagenUrl!.isEmpty)
+                                ? const Icon(Icons.restaurant)
+                                : null,
+                          ),
+                          title: Text(item.platillo.nombre),
+                          subtitle: Text('S/${item.platillo.precio.toStringAsFixed(2)}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: () => cart.removeSingleItem(item.platillo.id),
+                              ),
+                              Text(item.cantidad.toString(), style: const TextStyle(fontSize: 16)),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline, color: Colors.deepOrange),
+                                onPressed: () => cart.addItem(item.platillo),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                          child: TextField(
+                            controller: notesController,
+                            decoration: const InputDecoration(
+                              labelText: 'Notas para el producto (opcional)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                            onChanged: (value) {
+                              cart.updateItemNotes(item.platillo.id, value.isEmpty ? null : value);
+                            },
+                          ),
+                        ),
+                        const Divider(height: 1, thickness: 1),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          _buildCheckoutBarContent(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCheckoutBarContent(BuildContext context) {
+    return Consumer<CartProvider>(
+      builder: (context, cart, child) {
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), spreadRadius: 1, blurRadius: 5, offset: const Offset(0, -2))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _notaGeneralPedidoController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Nota general del pedido (opcional)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text('Limpiar Carrito', style: TextStyle(fontSize: 18)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey,
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                      onPressed: cart.items.isEmpty ? null : () => cart.clearCart(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton.icon(
+                            icon: const Icon(Icons.payment),
+                            label: const Text('Realizar Pedido', style: TextStyle(fontSize: 18)),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                            ),
+                            onPressed: cart.items.isEmpty ? null : _submitOrder,
+                          ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

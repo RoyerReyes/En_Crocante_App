@@ -1,0 +1,102 @@
+class PedidoDetalle {
+  final int id;
+  final int platilloId;
+  final int cantidad;
+  final double precioUnitario;
+  final String? notas;
+
+  PedidoDetalle({
+    required this.id,
+    required this.platilloId,
+    required this.cantidad,
+    required this.precioUnitario,
+    this.notas,
+  });
+
+  factory PedidoDetalle.fromJson(Map<String, dynamic> json) {
+    return PedidoDetalle(
+      id: json['id'] as int,
+      platilloId: json['platillo_id'] as int,
+      cantidad: json['cantidad'] as int,
+      precioUnitario: double.parse(json['precio_unitario'].toString()), // Parseo robusto
+      notas: json['notas'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = {
+      'id': id,
+      'platillo_id': platilloId,
+      'cantidad': cantidad,
+      'precio_unitario': precioUnitario,
+    };
+    if (notas != null) {
+      data['notas'] = notas;
+    }
+    return data;
+  }
+}
+
+class Pedido {
+  final int id;
+  final int? mesaId; // Changed from mesa_id to mesaId for Dart convention
+  final int? usuarioId; // Changed from usuario_id to usuarioId for Dart convention
+  final String? nombreCliente; // Nuevo campo agregado
+  String estado;
+  final double total;
+  final DateTime createdAt; // Changed from createdAt to createdAt for Dart convention
+  final List<PedidoDetalle> detalles;
+
+  Pedido({
+    required this.id,
+    this.mesaId,
+    this.usuarioId,
+    this.nombreCliente,
+    required this.estado,
+    required this.total,
+    required this.createdAt,
+    required this.detalles,
+  });
+
+  factory Pedido.fromJson(Map<String, dynamic> json) {
+    var detallesList = json['detalles'] as List?;
+    List<PedidoDetalle> _detalles = [];
+    if (detallesList != null) {
+      _detalles = detallesList.map((i) => PedidoDetalle.fromJson(i as Map<String, dynamic>)).toList();
+    }
+
+    return Pedido(
+      id: json['id'] as int,
+      mesaId: json['mesa_id'] as int?,
+      usuarioId: json['usuario_id'] as int?,
+      nombreCliente: json['nombre_cliente'] as String?, // Mapeo desde JSON
+      estado: json['estado'] as String,
+      total: double.parse(json['total'].toString()), // Parseo robusto
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      detalles: _detalles,
+    );
+  }
+
+  // copyWith for immutability
+  Pedido copyWith({
+    int? id,
+    int? mesaId,
+    int? usuarioId,
+    String? nombreCliente,
+    String? estado,
+    double? total,
+    DateTime? createdAt,
+    List<PedidoDetalle>? detalles,
+  }) {
+    return Pedido(
+      id: id ?? this.id,
+      mesaId: mesaId ?? this.mesaId,
+      usuarioId: usuarioId ?? this.usuarioId,
+      nombreCliente: nombreCliente ?? this.nombreCliente,
+      estado: estado ?? this.estado,
+      total: total ?? this.total,
+      createdAt: createdAt ?? this.createdAt,
+      detalles: detalles ?? this.detalles,
+    );
+  }
+}

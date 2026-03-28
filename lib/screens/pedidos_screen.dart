@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../providers/pedido_provider.dart';
-import '../services/socket_service.dart';
 
 class PedidosScreen extends StatefulWidget {
   const PedidosScreen({super.key});
@@ -12,55 +10,54 @@ class PedidosScreen extends StatefulWidget {
 }
 
 class _PedidosScreenState extends State<PedidosScreen> {
-  late SocketService _socketService;
-
   @override
   void initState() {
     super.initState();
-    
-    // 1. Obtenemos la instancia del provider SIN escuchar cambios.
-    // Usamos listen: false porque estamos fuera del método build.
-    final pedidoProvider = Provider.of<PedidoProvider>(context, listen: false);
-
-    // 2. Cargamos los datos iniciales (simulados por ahora).
-    pedidoProvider.cargarPedidosIniciales();
-
-    // 3. Creamos el SocketService y le pasamos el método del provider como callback.
-    // Así, el servicio notificará al provider directamente.
-    _socketService = SocketService(
-      onEstadoActualizado: pedidoProvider.actualizarEstadoDesdeSocket,
-    );
-
-    // 4. Nos conectamos al servidor de sockets.
-    _socketService.connectToServer();
-  }
-
-  @override
-  void dispose() {
-    // Es una buena práctica desconectarse al salir de la pantalla para liberar recursos.
-    _socketService.disconnect();
-    super.dispose();
+    // Usamos addPostFrameCallback para asegurarnos de que el context está disponible
+    // y llamamos al provider para que cargue los datos.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<PedidoProvider>(context, listen: false).cargarPedidosIniciales();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Seguimiento de Pedidos en Tiempo Real'),
+        title: const Text('Mis Pedidos'),
       ),
-      // 5. Usamos un Consumer para que solo esta parte de la UI se reconstruya
-      // cuando el PedidoProvider llame a notifyListeners().
       body: Consumer<PedidoProvider>(
         builder: (context, pedidoProvider, child) {
-          if (pedidoProvider.pedidos.isEmpty) {
-            return const Center(child: Text('No hay pedidos para mostrar.'));
+          // Estado de Carga
+          if (pedidoProvider.isLoading && pedidoProvider.pedidos.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
           }
-          // Usamos un RefreshIndicator para poder recargar los pedidos manualmente.
+
+          // Estado de Error
+          if (pedidoProvider.errorMessage != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Error: ${pedidoProvider.errorMessage}', textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => pedidoProvider.cargarPedidosIniciales(),
+                    child: const Text('Reintentar'),
+                  )
+                ],
+              ),
+            );
+          }
+
+          // Estado Vacío
+          if (pedidoProvider.pedidos.isEmpty) {
+            return const Center(child: Text('No tienes pedidos activos.'));
+          }
+
+          // Estado con Datos
           return RefreshIndicator(
-            onRefresh: () async {
-              // En el futuro, aquí podrías volver a llamar a la API REST.
-              pedidoProvider.cargarPedidosIniciales();
-            },
+            onRefresh: () => pedidoProvider.cargarPedidosIniciales(),
             child: ListView.builder(
               itemCount: pedidoProvider.pedidos.length,
               itemBuilder: (context, index) {
@@ -91,7 +88,6 @@ class _PedidosScreenState extends State<PedidosScreen> {
     );
   }
 
-  // Función auxiliar para dar color a los estados del pedido.
   Color _getColorForEstado(String estado) {
     switch (estado) {
       case 'recibido':

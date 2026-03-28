@@ -1,0 +1,220 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/pedido_model.dart';
+import '../providers/pedido_provider.dart';
+
+class PedidosListScreen extends StatefulWidget {
+  const PedidosListScreen({super.key});
+
+  @override
+  State<PedidosListScreen> createState() => _PedidosListScreenState();
+}
+
+class _PedidosListScreenState extends State<PedidosListScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    // Trigger initial data load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<PedidoProvider>(context, listen: false).cargarPedidosIniciales();
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mis Pedidos'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.timelapse), text: 'Activos'),
+            Tab(icon: Icon(Icons.history), text: 'Historial'),
+          ],
+        ),
+      ),
+      body: Consumer<PedidoProvider>(
+        builder: (context, pedidoProvider, child) {
+          if (pedidoProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (pedidoProvider.errorMessage != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Ocurrió un problema',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      pedidoProvider.errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => pedidoProvider.cargarPedidosIniciales(),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPedidosList(pedidoProvider.pedidosActivos, isHistorial: false),
+              _buildPedidosList(pedidoProvider.pedidosHistorial, isHistorial: true),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPedidosList(List<Pedido> pedidos, {required bool isHistorial}) {
+    if (pedidos.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isHistorial ? Icons.history_toggle_off : Icons.fastfood_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isHistorial ? 'No tienes pedidos recientes' : 'No hay pedidos activos',
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: pedidos.length,
+      padding: const EdgeInsets.all(8.0),
+      itemBuilder: (context, index) {
+        final pedido = pedidos[index];
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: _getStateColor(pedido.estado).withOpacity(0.3), width: 1),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Mesa ${pedido.mesaId}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    _buildStateChip(pedido.estado),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Cliente: ${pedido.nombreCliente ?? "Sin nombre"}'), // Necesitamos asegurar que este campo exista o usar fallback
+                const SizedBox(height: 4),
+                Text(
+                  'Total: S/${pedido.total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+                ),
+                const Divider(height: 24),
+                const Text('Detalles:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...pedido.detalles.map((detalle) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${detalle.cantidad}x',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Platillo #${detalle.platilloId}', // Idealmente usaríamos el nombre del platillo si estuviera poblado o buscándolo
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 8),
+                Text(
+                  'Hora: ${pedido.createdAt.toLocal().toString().split('.')[0]}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  textAlign: TextAlign.end,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStateChip(String estado) {
+    return Chip(
+      label: Text(
+        estado.toUpperCase().replaceAll('_', ' '),
+        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+      backgroundColor: _getStateColor(estado),
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+
+  Color _getStateColor(String estado) {
+    switch (estado) {
+      case 'recibido':
+        return Colors.grey; // Gris para estado inicial
+      case 'en_preparacion':
+        return Colors.orange; // Naranja para cocinando
+      case 'listo':
+        return Colors.green; // Verde para listo
+      case 'entregado':
+        return Colors.blue; // Azul para completado
+      case 'cancelado':
+        return Colors.red; // Rojo para cancelado
+      default:
+        return Colors.black;
+    }
+  }
+}

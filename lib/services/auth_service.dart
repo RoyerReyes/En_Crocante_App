@@ -11,7 +11,7 @@ class AuthService {
     try {
       // CORRECCIÓN FINAL: Se revierte el campo a 'usuario' para que coincida con lo que el backend
       // está pidiendo en el log de error, ignorando la documentación auth_api.md.
-      final response = await _dio.post("/api/auth/login", data: {
+      final response = await _dio.post("/auth/login", data: {
         'usuario': usuario,
         'password': password,
       });
@@ -31,7 +31,10 @@ class AuthService {
       }
 
       if (responseData.containsKey('usuario') && responseData['usuario'] is Map<String, dynamic>) {
-        return Usuario.fromJson(responseData['usuario']);
+        final usuario = Usuario.fromJson(responseData['usuario']);
+        await _storageService.saveUserName(usuario.nombre); // Guardar nombre de usuario
+        await _storageService.saveUserRole(usuario.rol); // Guardar rol
+        return usuario;
       } else {
         throw Exception('La respuesta no contiene los datos del usuario.');
       }
@@ -55,9 +58,14 @@ class AuthService {
     await _storageService.deleteToken();
   }
 
+  // Nuevo método para obtener el nombre del usuario logeado
+  Future<String?> getLoggedInUserName() async {
+    return await _storageService.getUserName();
+  }
+
   Future<void> register(Map<String, dynamic> userData) async {
     try {
-      await _dio.post("/api/auth/register", data: userData);
+      await _dio.post("/auth/register", data: userData);
       print("✅ Usuario registrado con éxito.");
 
     } on DioException catch (e) {

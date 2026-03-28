@@ -1,8 +1,19 @@
+import 'dart:async';
+
+import 'package:encrocante_app/providers/cart_provider.dart';
+import 'package:encrocante_app/providers/pedido_provider.dart';
+import 'package:encrocante_app/providers/config_provider.dart'; // Added
+import 'package:encrocante_app/screens/cart_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/platillo_model.dart';
 import '../services/auth_service.dart';
 import '../services/platillo_service.dart';
+import '../widgets/order_details_widget.dart'; // Add this
+import '../providers/order_details_provider.dart'; // ADDED: Missing import
 import 'login_screen.dart';
+import 'pedidos_list_screen.dart';
+import '../widgets/dish_avatar.dart'; // Added
 
 class PlatillosPage extends StatefulWidget {
   final String userRole;
@@ -19,6 +30,9 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   final AuthService _authService = AuthService();
   late Future<List<Platillo>> _platillosFuture;
   late TabController _tabController;
+  Timer? _debounceTimer;
+
+  String? _mozoResponsable; // New field
 
   final TextEditingController _searchController = TextEditingController();
   String _filtroSeleccionado = 'Todos';
@@ -28,10 +42,16 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
+    final pedidoProvider = Provider.of<PedidoProvider>(context, listen: false);
+    // Inicializar socket centralizado en el provider
+    pedidoProvider.initSocket();
+    
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
-    _searchController.addListener(_onSearchChanged);
+    _loadMozoResponsable(); // Call this here
   }
+  
+  // Method removed as it is now centralized
 
   Future<void> _loadData() {
     _platillosFuture = _platilloService.getPlatillos();
@@ -39,14 +59,19 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
       if (mounted) {
         setState(() {
           _platillosOriginales = platillos;
-          _filterPlatillos(); // Aplicar filtros iniciales
+          _filterPlatillos();
         });
       }
     });
   }
 
   void _onSearchChanged() {
-    _filterPlatillos();
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _filterPlatillos();
+      }
+    });
   }
   
   void _onFilterSelected(String filtro) {
@@ -67,18 +92,25 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
     });
   }
 
+  Future<void> _loadMozoResponsable() async { // New method
+    final userName = await _authService.getLoggedInUserName();
+    setState(() {
+      _mozoResponsable = userName;
+    });
+  }
+
   @override
   void dispose() {
+
     _tabController.dispose();
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _refreshPlatillos() async {
     _searchController.clear();
-    setState(() {
-      _filtroSeleccionado = 'Todos';
-    });
+    setState(() { _filtroSeleccionado = 'Todos'; });
     await _loadData();
   }
 
@@ -103,16 +135,65 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
           tooltip: 'Cerrar Sesión',
           onPressed: _logout,
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Mesa"),
-            Text(widget.userName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal)),
-          ],
+        title: Consumer<OrderDetailsProvider>( // Wrap with Consumer to listen to changes
+          builder: (context, orderDetails, child) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Mesa: ${orderDetails.numeroMesa}"), // Display numeroMesa from provider
+                Text(widget.userName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal)), // Mozo Responsable
+              ],
+            );
+          },
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.receipt_long), tooltip: 'Ver Pedidos', onPressed: () {}),
-          IconButton(icon: const Icon(Icons.shopping_cart), tooltip: 'Ver Carrito', onPressed: () {}),
+          Consumer<PedidoProvider>(
+            builder: (context, pedidoProvider, child) {
+              // Filter by status 'listo' OR 'en_preparacion' with ready items AND current waiter
+              final readyCount = pedidoProvider.pedidosActivos.where((p) {
+                 if (p.nombreMesero != widget.userName) return false;
+                 if (p.estado == 'listo') return true;
+                 if (p.estado == 'en_preparacion') {
+                    // Count if ANY item is ready
+                    return p.detalles.any((d) => d.listo);
+                 }
+                 return false;
+              }).length;
+                  
+              return Badge(
+                label: Text(readyCount.toString()),
+                isLabelVisible: readyCount > 0,
+                backgroundColor: Colors.green, // Green for Ready
+                child: IconButton(
+                  icon: const Icon(Icons.receipt_long), 
+                  tooltip: 'Ver Mis Pedidos (Activos: $readyCount)', 
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => const PedidosListScreen()),
+                    );
+                  }
+                ),
+              );
+            },
+          ),
+          // --- CORRECCIÓN AQUÍ ---
+          // El Consumer debe ser de tipo CartProvider para que funcione el carrito.
+          Consumer<CartProvider>(
+            builder: (context, cart, child) => Badge(
+              label: Text(cart.itemCount.toString()),
+              isLabelVisible: cart.itemCount > 0,
+              child: IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                tooltip: 'Ver Carrito',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const CartScreen()),
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -136,6 +217,8 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   }
 
   Widget _buildMenuTab() {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
     return RefreshIndicator(
       onRefresh: _refreshPlatillos,
       child: Column(
@@ -173,19 +256,37 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
                   itemBuilder: (context, index) {
                     final platillo = _platillosFiltrados[index];
                     return ListTile(
-                      leading: CircleAvatar(
-                        radius: 30,
-                        backgroundImage: (platillo.imagenUrl != null && platillo.imagenUrl!.isNotEmpty)
-                            ? NetworkImage(platillo.imagenUrl!)
-                            : null,
-                        child: (platillo.imagenUrl == null || platillo.imagenUrl!.isEmpty)
-                            ? const Icon(Icons.restaurant, color: Colors.white)
-                            : null,
+                      leading: Hero(
+                        tag: 'platillo_${platillo.id}',
+                        child: DishAvatar(
+                          imageUrl: platillo.imagenUrl,
+                          radius: 30,
+                        ),
                       ),
                       title: Text(platillo.nombre),
-                      // CORRECCIÓN: Usar ?? '' para mostrar un texto vacío si la descripción es nula.
-                      subtitle: Text(platillo.descripcion ?? ''),
-                      trailing: Text('\$${platillo.precio.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(platillo.descripcion ?? ''),
+                          const SizedBox(height: 4),
+                          Text(
+                            'S/${platillo.precio.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add_shopping_cart, color: Colors.deepOrange, size: 30),
+                        onPressed: () {
+                          cartProvider.addItem(platillo);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${platillo.nombre} añadido al carrito.'),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
                     );
                   },
                 );
@@ -198,9 +299,7 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   }
 
   Widget _buildFilterChips() {
-    if (_platillosOriginales.isEmpty) {
-      return const SizedBox.shrink(); 
-    }
+    if (_platillosOriginales.isEmpty) { return const SizedBox.shrink(); }
     final categorias = _platillosOriginales.map((p) => p.categoria.nombre).toSet().toList();
     final filtros = ['Todos', ...categorias]; 
 
@@ -214,11 +313,7 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
             child: FilterChip(
               label: Text(filtro),
               selected: _filtroSeleccionado == filtro,
-              onSelected: (bool selected) {
-                if (selected) {
-                  _onFilterSelected(filtro);
-                }
-              },
+              onSelected: (selected) { if (selected) { _onFilterSelected(filtro); } },
             ),
           );
         }).toList(),
@@ -227,8 +322,8 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   }
 
   Widget _buildClienteTab() {
-    return const Center(
-      child: Text('Información del Cliente', style: TextStyle(fontSize: 18)),
+    return OrderDetailsWidget(
+      mozoResponsable: _mozoResponsable ?? 'Mozo Desconocido',
     );
   }
 }

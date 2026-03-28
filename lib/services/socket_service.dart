@@ -1,56 +1,109 @@
+import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'dio_client.dart'; // Importamos para reutilizar la URL base
+import 'dio_client.dart';
+import 'secure_storage_service.dart';
 
 class SocketService {
-  // Patrón Singleton para asegurar una única instancia del servicio
-  static final SocketService _instance = SocketService._internal();
-  factory SocketService() {
-    return _instance;
-  }
-  SocketService._internal();
+  IO.Socket? _socket;
+  final SecureStorageService _storageService = SecureStorageService();
+  final Function(Map<String, dynamic>) onEstadoActualizado;
+  final Function(Map<String, dynamic>)? onNuevoPedido;
+  final Function(Map<String, dynamic>)? onItemActualizado;
+  final Function(Map<String, dynamic>)? onBroadcastMessage; // Added
 
-  late IO.Socket socket;
+  SocketService({
+    required this.onEstadoActualizado, 
+    this.onNuevoPedido, 
+    this.onItemActualizado,
+    this.onBroadcastMessage,
+  });
 
-  void connectToServer() {
+  Future<void> connectToServer() async {
+    if (_socket != null && _socket!.connected) return;
+
     try {
-      // Reutilizamos la URL base del cliente Dio para no tenerla duplicada.
-      // La instancia 'dio' ya tiene la URL http://192.168.18.39:3000
       final baseUrl = dio.options.baseUrl;
+      final token = await _storageService.getToken();
 
-      socket = IO.io(baseUrl, <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': false, // Desactivamos la auto-conexión para controlar cuándo nos conectamos
-      });
-
-      // Solo intentamos conectar si no lo estamos ya.
-      if (!socket.connected) {
-        socket.connect();
+      if (token == null || token.isEmpty) {
+        if (kDebugMode) debugPrint('❌ SocketService: Token inválido');
+        return;
       }
 
-      socket.onConnect((_) {
-        print('✅ Conectado al servidor de sockets');
+      // Configuración optimizada para Socket.IO v4
+      _socket = IO.io(baseUrl, IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .enableAutoConnect()
+          .enableReconnection()
+          .setReconnectionAttempts(5)
+          .setReconnectionDelay(1000)
+          .setAuth({'token': token})
+          .build());
+
+      _socket!.onConnect((_) {
+        // Conectado
       });
 
-      // Escuchar el evento 'estadoPedidoActualizado'
-      socket.on('estadoPedidoActualizado', (data) {
-        print('📢 Estado del pedido actualizado: $data');
-        
-        // Aquí es donde en el futuro se actualizará el estado en la UI.
-        // Por ejemplo, usando un Provider de Pedidos.
-        // Ejemplo: context.read<PedidoProvider>().actualizarPedido(data);
+      _socket!.on('estadoPedidoActualizado', (data) {
+        if (data is Map<String, dynamic>) {
+          onEstadoActualizado(data);
+        }
       });
 
-      socket.onDisconnect((_) => print('🔌 Desconectado del servidor de sockets'));
-      socket.onError((err) => print('❌ Error de socket: $err'));
+      _socket!.on('pedido_actualizado', (data) {
+        if (data is Map<String, dynamic>) {
+          onEstadoActualizado(data);
+        }
+      });
+
+      _socket!.on('estado_actualizado', (data) {
+        if (data is Map<String, dynamic>) {
+          onEstadoActualizado(data);
+        }
+      });
+
+      _socket!.on('pedido_creado', (data) {
+        if (data is Map<String, dynamic> && onNuevoPedido != null) {
+          onNuevoPedido!(data);
+        }
+      });
+
+      _socket!.on('pedido_item_actualizado', (data) {
+        if (data is Map && onItemActualizado != null) {
+          onItemActualizado!(Map<String, dynamic>.from(data));
+        }
+      });
+
+      _socket!.on('broadcast_message', (data) {
+        if (data is Map && onBroadcastMessage != null) {
+          onBroadcastMessage!(Map<String, dynamic>.from(data));
+        }
+      });
+
+      _socket!.onDisconnect((_) {});
+      _socket!.onConnectError((err) { 
+        if (kDebugMode) debugPrint('❌ SocketService: Error conexión: $err');
+      });
+      _socket!.onError((err) {
+        if (kDebugMode) debugPrint('❌ SocketService: Error: $err');
+      });
 
     } catch (e) {
-      print(e.toString());
+      if (kDebugMode) debugPrint('❌ SocketService: Excepción: $e');
     }
   }
 
   void disconnect() {
-    if (socket.connected) {
-      socket.disconnect();
+    if (_socket != null) {
+      _socket!.disconnect();
+      // No seteamos _socket a null inmediatamente por si queremos reconectar, 
+      // pero en este caso dispose() probablemente sea el final del ciclo de vida.
     }
+  }
+
+  void dispose() {
+    disconnect();
+    _socket?.dispose();
+    _socket = null;
   }
 }
