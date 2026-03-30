@@ -10,6 +10,7 @@ import '../providers/pedido_provider.dart';
 import '../constants/pedido_estados.dart'; // Importar constantes
 import '../services/secure_storage_service.dart'; // Importar SecureStorageService
 import '../providers/salsa_provider.dart'; // Import Added
+import '../providers/presa_provider.dart'; // Import Added
 
 class KitchenScreen extends StatefulWidget {
   const KitchenScreen({super.key});
