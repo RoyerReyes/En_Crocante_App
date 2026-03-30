@@ -5,6 +5,7 @@ class PedidoDetalle {
   final double precioUnitario;
   final String? notas;
   final String? nombrePlatillo;
+  final String? categoriaNombre; // Nuevo campo
   final bool listo; // Nuevo campo
 
   PedidoDetalle({
@@ -14,6 +15,7 @@ class PedidoDetalle {
     required this.precioUnitario,
     this.notas,
     this.nombrePlatillo,
+    this.categoriaNombre,
     this.listo = false, // Default false
   });
 
@@ -27,6 +29,7 @@ class PedidoDetalle {
       precioUnitario: double.parse(json['precio_unitario'].toString()),
       notas: json['nota'] as String?,
       nombrePlatillo: json['platillo_nombre'] as String?,
+      categoriaNombre: json['categoria_nombre'] as String?, // Mapeo desde query
       listo: json['listo'] == 1 || json['listo'] == true, // Handle MySQL pseudo-boolean
     );
   }

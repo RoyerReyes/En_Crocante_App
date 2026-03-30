@@ -126,7 +126,7 @@ class _KitchenScreenState extends State<KitchenScreen>
               tabs: const [
                 Tab(text: 'Pedidos'),
                 Tab(text: 'Stats'),
-                Tab(text: 'Salsas'),
+                Tab(text: 'Insumos'),
               ],
             ),
           ),
@@ -137,8 +137,8 @@ class _KitchenScreenState extends State<KitchenScreen>
               _buildPedidosView(pedidoProvider),
               // Pestaña de Stats
               _buildStatsView(pedidoProvider),
-              // Pestaña de Salsas
-              _buildSalsasView(),
+              // Pestaña de Insumos
+              _buildInsumosView(),
             ],
           ),
         );
@@ -406,44 +406,75 @@ class _KitchenScreenState extends State<KitchenScreen>
     );
   }
 
-  Widget _buildSalsasView() {
-    return Consumer<SalsaProvider>(
-      builder: (context, salsaProvider, child) {
-        if (salsaProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (salsaProvider.salsas.isEmpty) {
-          return const Center(child: Text("No se encontraron salsas."));
-        }
-
-        return ListView.separated(
-          itemCount: salsaProvider.salsas.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final salsa = salsaProvider.salsas[index];
-            return ListTile(
-              title: Text(salsa.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-              trailing: Switch(
-                value: salsa.activo,
-                activeColor: Colors.green,
-                onChanged: (bool value) async {
-                  try {
-                    await salsaProvider.toggleSalsa(salsa.id, value);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${salsa.nombre} está ${value ? 'Disponible' : 'Agotada'}'), duration: const Duration(seconds: 1)),
-                    );
-                  } catch (e) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                    );
-                  }
+  Widget _buildInsumosView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 80.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sección Salsas
+          Container(
+            color: Colors.grey.shade200,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: const Text('Disponibilidad de Salsas', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          Consumer<SalsaProvider>(
+            builder: (context, salsaProvider, child) {
+              if (salsaProvider.isLoading) return const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()));
+              if (salsaProvider.salsas.isEmpty) return const Padding(padding: EdgeInsets.all(16.0), child: Text("No se encontraron salsas."));
+              
+              return ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                itemCount: salsaProvider.salsas.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = salsaProvider.salsas[index];
+                  return SwitchListTile(
+                    title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    value: item.activo,
+                    activeColor: Colors.green,
+                    onChanged: (val) async {
+                       await salsaProvider.toggleSalsa(item.id, val);
+                    },
+                  );
                 },
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          ),
+          
+          // Sección Presas
+          Container(
+            color: Colors.grey.shade200,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: const Text('Disponibilidad de Presas', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          Consumer<PresaProvider>(
+            builder: (context, presaProvider, child) {
+              if (presaProvider.isLoading) return const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()));
+              if (presaProvider.presas.isEmpty) return const Padding(padding: EdgeInsets.all(16.0), child: Text("No se encontraron presas."));
+              
+              return ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                itemCount: presaProvider.presas.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = presaProvider.presas[index];
+                  return SwitchListTile(
+                    title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    value: item.activo,
+                    activeColor: Colors.green,
+                    onChanged: (val) async {
+                       await presaProvider.togglePresa(item.id, val);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

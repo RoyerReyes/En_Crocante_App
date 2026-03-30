@@ -12,6 +12,7 @@ import '../services/platillo_service.dart';
 import '../widgets/order_details_widget.dart'; // Add this
 import '../providers/order_details_provider.dart'; // ADDED: Missing import
 import '../providers/salsa_provider.dart'; // Import Added
+import '../providers/presa_provider.dart'; // ADDED
 import 'login_screen.dart';
 import 'pedidos_list_screen.dart';
 import '../widgets/dish_avatar.dart'; // Added
@@ -53,6 +54,7 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<SalsaProvider>(context, listen: false).fetchSalsas();
+      Provider.of<PresaProvider>(context, listen: false).fetchPresas();
     });
   }
   
@@ -281,10 +283,32 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
                           ),
                         ],
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.add_shopping_cart, color: Colors.deepOrange, size: 30),
-                        onPressed: () {
-                          _addToCart(platillo);
+                      trailing: Consumer<CartProvider>(
+                        builder: (context, cart, child) {
+                          if (platillo.categoria.nombre.toLowerCase().contains('descartable')) {
+                            int currentQty = cart.itemsList.where((i) => i.platillo.id == platillo.id && (i.notas == null || i.notas!.isEmpty)).length;
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (currentQty > 0)
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.deepOrange),
+                                    onPressed: () => cart.removeSingleItem(platillo.id),
+                                  ),
+                                if (currentQty > 0)
+                                  Text(currentQty.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle, color: Colors.deepOrange, size: 30),
+                                  onPressed: () => _addToCart(platillo),
+                                ),
+                              ],
+                            );
+                          }
+                          
+                          return IconButton(
+                            icon: const Icon(Icons.add_shopping_cart, color: Colors.deepOrange, size: 30),
+                            onPressed: () => _addToCart(platillo),
+                          );
                         },
                       ),
                     );
@@ -328,13 +352,18 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   }
 
   void _addToCart(Platillo platillo) {
-    if (platillo.categoria.nombre.toLowerCase().contains('alitas')) {
+    String lowerCategory = platillo.categoria.nombre.toLowerCase();
+    if (lowerCategory.contains('alitas') || lowerCategory.contains('combo')) {
       _showSalsasDialog(platillo);
+    } else if (lowerCategory.contains('broaster') || lowerCategory.contains('mostrito')) {
+      _showPresasDialog(platillo);
     } else {
       Provider.of<CartProvider>(context, listen: false).addItem(platillo);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${platillo.nombre} añadido al carrito.'), duration: const Duration(seconds: 1)),
-      );
+      if (!lowerCategory.contains('descartable')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${platillo.nombre} añadido al carrito.'), duration: const Duration(seconds: 1)),
+        );
+      }
     }
   }
 
@@ -408,6 +437,72 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
           }
         );
       }
+    );
+  }
+
+  void _showPresasDialog(Platillo platillo) {
+    final presaProvider = Provider.of<PresaProvider>(context, listen: false);
+    final presasActivas = presaProvider.presas.where((p) => p.activo).toList();
+    
+    if (presasActivas.isEmpty) {
+      Provider.of<CartProvider>(context, listen: false).addItem(platillo);
+      return;
+    }
+
+    final Map<int, bool> seleccionadas = { for (var p in presasActivas) p.id : false };
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Elige tu Presa - ${platillo.nombre}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: presasActivas.map((presa) {
+                    return CheckboxListTile(
+                      title: Text(presa.nombre),
+                      value: seleccionadas[presa.id],
+                      activeColor: Colors.deepOrange,
+                      onChanged: (bool? val) {
+                        setState(() { seleccionadas[presa.id] = val ?? false; });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context), 
+                  child: const Text('Cancelar')
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final elegidasNombres = presasActivas
+                        .where((p) => seleccionadas[p.id] == true)
+                        .map((p) => p.nombre)
+                        .toList();
+                        
+                    String notasAnadidas = elegidasNombres.isNotEmpty 
+                        ? 'Con: ${elegidasNombres.join(', ')}' 
+                        : 'Sin elección de presa';
+
+                    Provider.of<CartProvider>(context, listen: false).addItem(platillo, notas: notasAnadidas);
+                    Navigator.pop(context);
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${platillo.nombre} añadido al carrito.'), duration: const Duration(seconds: 1)),
+                    );
+                  },
+                  child: const Text('Añadir al Carrito'),
+                )
+              ],
+            );
+          }
+        );
+      },
     );
   }
 }

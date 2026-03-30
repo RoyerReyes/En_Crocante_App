@@ -5,6 +5,7 @@ import 'package:encrocante_app/providers/platillo_provider.dart';
 import 'package:encrocante_app/providers/config_provider.dart';
 import 'package:encrocante_app/providers/theme_provider.dart'; // Import
 import 'package:encrocante_app/providers/salsa_provider.dart'; // Import
+import 'package:encrocante_app/providers/presa_provider.dart'; // ADDED
 import 'package:encrocante_app/screens/login_screen.dart';
 import 'package:encrocante_app/widgets/notification_wrapper.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => ConfigProvider()),
         ChangeNotifierProvider(create: (context) => ThemeProvider()), // Nuevo
         ChangeNotifierProvider(create: (context) => SalsaProvider()), // Salsas
+        ChangeNotifierProvider(create: (context) => PresaProvider()), // ADDED: Presas
         ChangeNotifierProvider(create: (context) => ConnectivityService()), // Nuevo Offline Service
         ChangeNotifierProxyProvider<ConnectivityService, SyncService>(
           create: (context) => SyncService(Provider.of<ConnectivityService>(context, listen: false)),

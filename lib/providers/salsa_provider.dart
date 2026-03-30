@@ -41,4 +41,35 @@ class SalsaProvider with ChangeNotifier {
       throw e;
     }
   }
+
+  Future<void> addSalsa(String nombre, bool activo) async {
+    try {
+      await _salsaService.addSalsa(nombre, activo);
+      await fetchSalsas();
+    } catch (e) {
+      if (kDebugMode) print("Error al agregar salsa: $e");
+      throw e;
+    }
+  }
+
+  Future<void> updateSalsa(int id, String nombre, bool activo) async {
+    try {
+      await _salsaService.updateSalsa(id, nombre, activo);
+      await fetchSalsas();
+    } catch (e) {
+      if (kDebugMode) print("Error al actualizar salsa: $e");
+      throw e;
+    }
+  }
+
+  Future<void> deleteSalsa(int id) async {
+    try {
+      await _salsaService.deleteSalsa(id);
+      _salsas.removeWhere((s) => s.id == id);
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) print("Error al eliminar salsa: $e");
+      throw e;
+    }
+  }
 }

@@ -153,24 +153,39 @@ class KitchenOrderTicket extends StatelessWidget {
   List<Widget> _buildPlatillosList(BuildContext context) {
     final platilloProvider = Provider.of<PlatilloProvider>(context, listen: false);
     
-    return pedido.detalles.map((detalle) {
+    final List<Widget> itemsWidgets = [];
+    for (var detalle in pedido.detalles) {
       // Preferimos el nombre snapshot del detalle, si no, buscamos en provider
       String nombrePlatillo = detalle.nombrePlatillo ?? 'Platillo #${detalle.platilloId}';
+      String nombreCategoria = detalle.categoriaNombre?.toLowerCase() ?? '';
       
-      if (detalle.nombrePlatillo == null) {
+      if (detalle.nombrePlatillo == null || detalle.categoriaNombre == null) {
           final Platillo platillo = platilloProvider.platillos.firstWhere(
             (p) => p.id == detalle.platilloId,
             orElse: () => Platillo(id: 0, nombre: 'Platillo Desconocido', precio: 0.0, activo: false, categoria: Categoria(id: 0, nombre: 'Desconocida')),
           );
           if (platillo.id != 0) {
              nombrePlatillo = platillo.nombre;
+             nombreCategoria = platillo.categoria.nombre.toLowerCase();
           }
+      }
+
+      // 1. Filtrar descartables
+      if (nombreCategoria.contains('descartable')) {
+        continue; // Oculta por completo el registro en cocina
+      }
+
+      // 2. Colorear si es bebida
+      Color textColor = detalle.listo ? Colors.green : Colors.black;
+      if (!detalle.listo && (nombreCategoria.contains('bebida') || nombreCategoria.contains('mocktail'))) {
+        textColor = Colors.blue.shade800;
       }
 
       final bool isEnPreparacion = pedido.estado == PedidoEstados.enPreparacion;
       final bool isListo = pedido.estado == PedidoEstados.listo;
 
-      return Padding(
+      itemsWidgets.add(
+        Padding(
         padding: const EdgeInsets.only(bottom: 12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,8 +198,9 @@ class KitchenOrderTicket extends StatelessWidget {
                     '${detalle.cantidad}x $nombrePlatillo',
                     style: TextStyle(
                       fontSize: 16,
+                      fontWeight: textColor == Colors.blue.shade800 ? FontWeight.bold : FontWeight.normal,
                       decoration: detalle.listo ? TextDecoration.lineThrough : null,
-                      color: detalle.listo ? Colors.green : Colors.black,
+                      color: textColor,
                     ),
                   ),
                 ),
@@ -227,8 +243,9 @@ class KitchenOrderTicket extends StatelessWidget {
               ),
           ],
         ),
-      );
-    }).toList();
+      ));
+    }
+    return itemsWidgets;
   }
 
   Widget _buildFooter(BuildContext context) {

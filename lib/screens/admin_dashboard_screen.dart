@@ -9,9 +9,9 @@ import 'package:encrocante_app/models/pedido_model.dart';
 import 'package:encrocante_app/constants/pedido_estados.dart';
 import 'package:encrocante_app/screens/reports_screen.dart';
 import 'package:encrocante_app/providers/theme_provider.dart';
-import 'package:encrocante_app/services/report_service.dart';
 import 'package:encrocante_app/services/notification_service.dart'; // Import Added
 import 'package:encrocante_app/screens/admin_platillo_management_screen.dart'; // Import Added
+import 'package:encrocante_app/widgets/admin_insumos_tab.dart'; // ADDED
 import 'package:image_picker/image_picker.dart'; // Import Added
 import 'dart:io'; // Import Added
 import 'package:encrocante_app/constants/api_constants.dart'; // Import Added for Image URL construction
@@ -38,8 +38,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
   @override
   void initState() {
     super.initState();
-    // Creamos 5 pestañas: General, Notificaciones, Reportes, Personal, Menú
-    _tabController = TabController(length: 5, vsync: this);
+    // Creamos 6 pestañas
+    _tabController = TabController(length: 6, vsync: this);
     
     // Initialize controllers with current values
     final config = Provider.of<ConfigProvider>(context, listen: false);
@@ -143,6 +143,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
             Tab(icon: Icon(Icons.bar_chart), text: 'Reportes'),
             Tab(icon: Icon(Icons.people), text: 'Personal'),
             Tab(icon: Icon(Icons.restaurant_menu), text: 'Menú'), // New Tab
+            Tab(icon: Icon(Icons.fastfood), text: 'Insumos'), // ADDED
           ],
         ),
       ),
@@ -163,6 +164,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           
           // Vista para CRUD Platillos
           const AdminPlatilloManagementScreen(),
+          
+          // Vista para CRUD Insumos
+          const AdminInsumosTab(),
         ],
       ),
     );
