@@ -6,6 +6,7 @@ import '../providers/config_provider.dart'; // Import ConfigProvider
 import '../services/cliente_service.dart';
 import '../models/cliente_model.dart';
 import '../constants/app_constants.dart';
+import '../screens/cart_screen.dart';
 
 class OrderDetailsWidget extends StatefulWidget {
   final String? mozoResponsable;
@@ -155,13 +156,13 @@ class _OrderDetailsWidgetState extends State<OrderDetailsWidget> {
                    const SizedBox(width: 8),
                    Expanded(
                      child: ElevatedButton(
-                       onPressed: () => orderDetails.setTipoAtencion('llevar'),
+                       onPressed: () => orderDetails.setTipoAtencion('recojo'),
                        style: ElevatedButton.styleFrom(
                          backgroundColor: orderDetails.tipoAtencion != 'mesa' ? AppConstants.primaryColor : Colors.grey.shade200,
                          foregroundColor: orderDetails.tipoAtencion != 'mesa' ? Colors.white : Colors.black87,
                          elevation: orderDetails.tipoAtencion != 'mesa' ? 2 : 0,
                        ),
-                       child: const Text('Para Llevar'),
+                       child: const Text('Para Llevar / Recojo'),
                      )
                    ),
                 ]
@@ -265,6 +266,29 @@ class _OrderDetailsWidgetState extends State<OrderDetailsWidget> {
                     ],
                   ),
                 ),
+              const SizedBox(height: 32),
+              
+              AnimatedOpacity(
+                opacity: orderDetails.nombreCliente.isNotEmpty ? 1.0 : 0.5,
+                duration: const Duration(milliseconds: 300),
+                child: ElevatedButton.icon(
+                  onPressed: orderDetails.nombreCliente.isNotEmpty 
+                      ? () {
+                          Navigator.of(context).push(
+                             MaterialPageRoute(builder: (context) => const CartScreen()),
+                          );
+                        }
+                      : null,
+                  icon: const Icon(Icons.shopping_cart_checkout),
+                  label: const Text('Continuar al Carrito', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
             ],
           ),
         );

@@ -520,7 +520,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with SingleTickerProvid
             child: ElevatedButton(
               onPressed: _qrVisible ? () => _procesarPago('Yape - Plin') : null, // Solo activo si mostró QR
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
+                backgroundColor: Colors.green.shade600,
                 foregroundColor: Colors.white,
               ),
               child: Text(

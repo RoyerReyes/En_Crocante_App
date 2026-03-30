@@ -55,12 +55,12 @@ class ReceiptService {
               pw.Center(child: pw.Text('Av. Maria Elena Moyano Mz. F', style: pw.TextStyle(font: font, fontSize: 8))),
               pw.Center(child: pw.Text('Villa el Salvador LIMA', style: pw.TextStyle(font: font, fontSize: 8))),
               pw.SizedBox(height: 5),
-              pw.Center(child: pw.Text('NOTA DE VENTA ELECTRÓNICA', style: pw.TextStyle(font: fontBold, fontSize: 9))),
-              pw.Center(child: pw.Text(_generateSerie(pedido.id), style: pw.TextStyle(font: font, fontSize: 9))),
+              pw.Center(child: pw.Text('NOTA DE VENTA / PEDIDO', style: pw.TextStyle(font: fontBold, fontSize: 9))),
               pw.SizedBox(height: 5),
               
               // INFO
               pw.Text('ATENCIÓN: ${pedido.tipo.toUpperCase()}', style: pw.TextStyle(font: fontBold, fontSize: 8)),
+              pw.Text('TICKET: ${_generateSerie(pedido.id)}', style: pw.TextStyle(font: fontBold, fontSize: 10)),
               if (pedido.tipo.toLowerCase() == 'mesa')
                  pw.Text('MESA: ${pedido.mesaId ?? "?"}', style: pw.TextStyle(font: font, fontSize: 8)),
               
@@ -180,6 +180,6 @@ class ReceiptService {
   }
 
   String _generateSerie(int id) {
-    return 'BA50-${id.toString().padLeft(8, '0')}';
+    return 'P-${id.toString().padLeft(2, '0')}';
   }
 }

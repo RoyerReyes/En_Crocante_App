@@ -127,10 +127,19 @@ class KitchenOrderTicket extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
-          child: Text(
-            clientName,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TICKET: P-${pedido.id.toString().padLeft(2, '0')}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.blueGrey),
+              ),
+              Text(
+                clientName,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
         Text(

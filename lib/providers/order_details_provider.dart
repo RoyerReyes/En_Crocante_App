@@ -6,7 +6,7 @@ class OrderDetailsProvider with ChangeNotifier {
   String _nombreCliente = '';
   int _numeroMesa = 1; // Valor por defecto
   Cliente? _clienteSeleccionado;
-  String _tipoAtencion = 'mesa'; // 'mesa', 'llevar', 'delivery'
+  String _tipoAtencion = 'mesa'; // 'mesa', 'recojo', 'delivery'
   bool _esDelivery = false;
 
   String get nombreCliente => _nombreCliente;
@@ -49,7 +49,7 @@ class OrderDetailsProvider with ChangeNotifier {
     if (value) {
       _tipoAtencion = 'delivery';
     } else if (_tipoAtencion == 'delivery') {
-       _tipoAtencion = 'llevar';
+       _tipoAtencion = 'recojo';
     }
     notifyListeners();
   }

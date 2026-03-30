@@ -266,7 +266,7 @@ class _CartScreenState extends State<CartScreen> {
                                     ? (cart.editPedidoId != null ? 'Actualizar Pedido' : 'Realizar Pedido') 
                                     : 'Faltan datos del cliente'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: canSubmit ? AppConstants.primaryColor : Colors.grey.shade400,
+                                    backgroundColor: canSubmit ? Colors.green.shade600 : Colors.grey.shade400,
                                     minimumSize: const Size.fromHeight(50),
                                   ),
                                   onPressed: canSubmit ? _submitOrder : null,
