@@ -9,6 +9,7 @@ import '../models/pedido_model.dart'; // Import Added
 import '../providers/pedido_provider.dart';
 import '../constants/pedido_estados.dart'; // Importar constantes
 import '../services/secure_storage_service.dart'; // Importar SecureStorageService
+import '../providers/salsa_provider.dart'; // Import Added
 
 class KitchenScreen extends StatefulWidget {
   const KitchenScreen({super.key});
@@ -26,7 +27,7 @@ class _KitchenScreenState extends State<KitchenScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _checkUserRole(); // Verificar rol al inicio
 
     // Usamos addPostFrameCallback para asegurarnos de que el context está disponible.
@@ -39,6 +40,9 @@ class _KitchenScreenState extends State<KitchenScreen>
 
       // 2. Configurar y conectar el socket centralizado
       pedidoProvider.initSocket();
+
+      // 3. Cargar salsas
+      Provider.of<SalsaProvider>(context, listen: false).fetchSalsas();
     });
   }
 
@@ -122,6 +126,7 @@ class _KitchenScreenState extends State<KitchenScreen>
               tabs: const [
                 Tab(text: 'Pedidos'),
                 Tab(text: 'Stats'),
+                Tab(text: 'Salsas'),
               ],
             ),
           ),
@@ -132,6 +137,8 @@ class _KitchenScreenState extends State<KitchenScreen>
               _buildPedidosView(pedidoProvider),
               // Pestaña de Stats
               _buildStatsView(pedidoProvider),
+              // Pestaña de Salsas
+              _buildSalsasView(),
             ],
           ),
         );
@@ -396,6 +403,47 @@ class _KitchenScreenState extends State<KitchenScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSalsasView() {
+    return Consumer<SalsaProvider>(
+      builder: (context, salsaProvider, child) {
+        if (salsaProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (salsaProvider.salsas.isEmpty) {
+          return const Center(child: Text("No se encontraron salsas."));
+        }
+
+        return ListView.separated(
+          itemCount: salsaProvider.salsas.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final salsa = salsaProvider.salsas[index];
+            return ListTile(
+              title: Text(salsa.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+              trailing: Switch(
+                value: salsa.activo,
+                activeColor: Colors.green,
+                onChanged: (bool value) async {
+                  try {
+                    await salsaProvider.toggleSalsa(salsa.id, value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${salsa.nombre} está ${value ? 'Disponible' : 'Agotada'}'), duration: const Duration(seconds: 1)),
+                    );
+                  } catch (e) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

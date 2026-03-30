@@ -243,7 +243,7 @@ class _ReportsTabState extends State<ReportsTab> with SingleTickerProviderStateM
       // Hoy (Start of Today)
       _startDate = DateTime(now.year, now.month, now.day);
       _filterLabel = "Hoy";
-      _usePresetToday = true; // Use server preset
+      _usePresetToday = false; // Disable server preset to force local time bounds against UTC database
     } else if (type == 7) {
       // Últimos 7 Días (Today included)
       // Start = Today - 6 days (to make 7 days total including today) or -7 for a full week back.

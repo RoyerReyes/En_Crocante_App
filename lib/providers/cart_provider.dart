@@ -17,8 +17,8 @@ class CartProvider with ChangeNotifier {
   double get totalAmount => totalItemsAmount + _costoDelivery;
 
   // Añade un CADA nuevo producto como un renglón independiente SIEMPRE.
-  void addItem(Platillo platillo) {
-    _items.add(CartItem(platillo: platillo));
+  void addItem(Platillo platillo, {String? notas}) {
+    _items.add(CartItem(platillo: platillo, notas: notas));
     notifyListeners();
   }
 

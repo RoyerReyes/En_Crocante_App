@@ -268,24 +268,30 @@ class _OrderDetailsWidgetState extends State<OrderDetailsWidget> {
                 ),
               const SizedBox(height: 32),
               
-              AnimatedOpacity(
-                opacity: orderDetails.nombreCliente.isNotEmpty ? 1.0 : 0.5,
-                duration: const Duration(milliseconds: 300),
-                child: ElevatedButton.icon(
-                  onPressed: orderDetails.nombreCliente.isNotEmpty 
-                      ? () {
-                          Navigator.of(context).push(
-                             MaterialPageRoute(builder: (context) => const CartScreen()),
-                          );
-                        }
-                      : null,
-                  icon: const Icon(Icons.shopping_cart_checkout),
-                  label: const Text('Continuar al Carrito', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              SafeArea(
+                bottom: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0),
+                  child: AnimatedOpacity(
+                    opacity: orderDetails.nombreCliente.isNotEmpty ? 1.0 : 0.5,
+                    duration: const Duration(milliseconds: 300),
+                    child: ElevatedButton.icon(
+                      onPressed: orderDetails.nombreCliente.isNotEmpty 
+                          ? () {
+                              Navigator.of(context).push(
+                                 MaterialPageRoute(builder: (context) => const CartScreen()),
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.shopping_cart_checkout),
+                      label: const Text('Continuar al Carrito', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade600,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
                   ),
                 ),
               ),

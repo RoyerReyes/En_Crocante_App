@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/platillo_service.dart';
 import '../widgets/order_details_widget.dart'; // Add this
 import '../providers/order_details_provider.dart'; // ADDED: Missing import
+import '../providers/salsa_provider.dart'; // Import Added
 import 'login_screen.dart';
 import 'pedidos_list_screen.dart';
 import '../widgets/dish_avatar.dart'; // Added
@@ -49,6 +50,10 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
     _loadMozoResponsable(); // Call this here
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SalsaProvider>(context, listen: false).fetchSalsas();
+    });
   }
   
   // Method removed as it is now centralized
@@ -234,6 +239,7 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
                 filled: true,
                 fillColor: Colors.grey[200],
               ),
+              onChanged: (value) => _onSearchChanged(),
             ),
           ),
           _buildFilterChips(),
@@ -278,13 +284,7 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
                       trailing: IconButton(
                         icon: const Icon(Icons.add_shopping_cart, color: Colors.deepOrange, size: 30),
                         onPressed: () {
-                          cartProvider.addItem(platillo);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${platillo.nombre} añadido al carrito.'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
+                          _addToCart(platillo);
                         },
                       ),
                     );
@@ -324,6 +324,90 @@ class _PlatillosPageState extends State<PlatillosPage> with SingleTickerProvider
   Widget _buildClienteTab() {
     return OrderDetailsWidget(
       mozoResponsable: _mozoResponsable ?? 'Mozo Desconocido',
+    );
+  }
+
+  void _addToCart(Platillo platillo) {
+    if (platillo.categoria.nombre.toLowerCase().contains('alitas')) {
+      _showSalsasDialog(platillo);
+    } else {
+      Provider.of<CartProvider>(context, listen: false).addItem(platillo);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${platillo.nombre} añadido al carrito.'), duration: const Duration(seconds: 1)),
+      );
+    }
+  }
+
+  void _showSalsasDialog(Platillo platillo) {
+    final salsaProvider = Provider.of<SalsaProvider>(context, listen: false);
+    final salsasActivas = salsaProvider.salsas.where((s) => s.activo).toList();
+    
+    if (salsasActivas.isEmpty) {
+      // Si no hay salsas configuradas o todas inactivas, agregar directo
+      Provider.of<CartProvider>(context, listen: false).addItem(platillo);
+      return;
+    }
+
+    Set<String> salsasSeleccionadas = {};
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Elige las Salsas para ${platillo.nombre}'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: salsasActivas.length,
+                  itemBuilder: (context, index) {
+                    final salsa = salsasActivas[index];
+                    final isSelected = salsasSeleccionadas.contains(salsa.nombre);
+                    return CheckboxListTile(
+                      title: Text(salsa.nombre),
+                      activeColor: Colors.orange,
+                      value: isSelected,
+                      onChanged: (bool? val) {
+                        setDialogState(() {
+                          if (val == true) {
+                            salsasSeleccionadas.add(salsa.nombre);
+                          } else {
+                            salsasSeleccionadas.remove(salsa.nombre);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    String notas = salsasSeleccionadas.isNotEmpty 
+                      ? 'SALSAS ELEGIDAS: ${salsasSeleccionadas.join(", ")}'
+                      : 'SALSAS ELEGIDAS: Ninguna';
+                    
+                    Provider.of<CartProvider>(context, listen: false).addItem(platillo, notas: notas);
+                    Navigator.pop(context);
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${platillo.nombre} añadido al carrito.'), duration: const Duration(seconds: 1)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  child: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          }
+        );
+      }
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:encrocante_app/screens/admin_dashboard_screen.dart';
 import 'package:encrocante_app/screens/kitchen_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert'; // ADDED for JSON encoding
 import '../models/usuario_model.dart';
 import '../services/auth_service.dart';
 import 'platillos_screen.dart';
@@ -25,6 +26,7 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
   String? _errorMessage;
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  Map<String, String> _savedAccounts = {}; // ADDED para almacenar {usuario: contraseña}
 
   @override
   void initState() {
@@ -36,6 +38,12 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _rememberMe = prefs.getBool('remember_me') ?? false;
+      
+      String? accountsJson = prefs.getString('saved_accounts');
+      if (accountsJson != null) {
+        _savedAccounts = Map<String, String>.from(json.decode(accountsJson));
+      }
+
       if (_rememberMe) {
         _usernameController.text = prefs.getString('saved_username') ?? '';
         _passwordController.text = prefs.getString('saved_password') ?? '';
@@ -46,10 +54,15 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
   Future<void> _saveCredentials(String user, String pass) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('remember_me', _rememberMe);
+    
     if (_rememberMe) {
+      _savedAccounts[user] = pass;
+      await prefs.setString('saved_accounts', json.encode(_savedAccounts));
       await prefs.setString('saved_username', user);
       await prefs.setString('saved_password', pass);
     } else {
+      _savedAccounts.remove(user);
+      await prefs.setString('saved_accounts', json.encode(_savedAccounts));
       await prefs.remove('saved_username');
       await prefs.remove('saved_password');
     }
@@ -118,15 +131,43 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              TextFormField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Usuario', 
-                  prefixIcon: Icon(Icons.person), 
-                ),
-                keyboardType: TextInputType.emailAddress, 
-                validator: (value) => value!.isEmpty ? 'Por favor, introduce tu nombre de usuario' : null, 
-                onSaved: (value) => _username = value!,
+              // Autocomplete widget replaced the TextFormField
+              Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text.isEmpty) {
+                    return _savedAccounts.keys.toList();
+                  }
+                  return _savedAccounts.keys.where((String option) {
+                    return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                  }).toList();
+                },
+                onSelected: (String selection) {
+                  _usernameController.text = selection;
+                  _passwordController.text = _savedAccounts[selection] ?? '';
+                },
+                fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                  // Bind the external controller if not bound 
+                  // Autocomplete uses its own controller internally, so we ensure sync
+                  controller.addListener(() {
+                    _usernameController.text = controller.text;
+                  });
+                  // If we already have something in _usernameController, set it (only on first build)
+                  if (_usernameController.text.isNotEmpty && controller.text.isEmpty) {
+                    controller.text = _usernameController.text;
+                  }
+
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Usuario', 
+                      prefixIcon: Icon(Icons.person), 
+                    ),
+                    keyboardType: TextInputType.emailAddress, 
+                    validator: (value) => value!.isEmpty ? 'Por favor, introduce tu nombre de usuario' : null, 
+                    onSaved: (value) => _username = value!,
+                  );
+                },
               ),
               const SizedBox(height: 16.0),
               TextFormField(

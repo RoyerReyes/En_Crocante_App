@@ -57,10 +57,11 @@ class ReceiptService {
               pw.SizedBox(height: 5),
               pw.Center(child: pw.Text('NOTA DE VENTA / PEDIDO', style: pw.TextStyle(font: fontBold, fontSize: 9))),
               pw.SizedBox(height: 5),
+              pw.Center(child: pw.Text('TICKET: ${_generateSerie(pedido.id)}', style: pw.TextStyle(font: fontBold, fontSize: 14))),
+              pw.SizedBox(height: 5),
               
               // INFO
               pw.Text('ATENCIÓN: ${pedido.tipo.toUpperCase()}', style: pw.TextStyle(font: fontBold, fontSize: 8)),
-              pw.Text('TICKET: ${_generateSerie(pedido.id)}', style: pw.TextStyle(font: fontBold, fontSize: 10)),
               if (pedido.tipo.toLowerCase() == 'mesa')
                  pw.Text('MESA: ${pedido.mesaId ?? "?"}', style: pw.TextStyle(font: font, fontSize: 8)),
               
